@@ -86,17 +86,20 @@ def list_announcements(current_user: Dict[str, Any] = Depends(get_current_user))
 
     anns = []
     for a in announcements_collection.find().sort([("expires_at", 1)]):
-        a["id"] = str(a.get("_id"))
-        a.pop("_id", None)
-        # format stored naive datetimes as ISO UTC
-        if a.get("start_date"):
-            a["start_date"] = a["start_date"].replace(microsecond=0).isoformat() + "Z"
-        if a.get("expires_at"):
-            a["expires_at"] = a["expires_at"].replace(microsecond=0).isoformat() + "Z"
-        if a.get("created_at"):
-            a["created_at"] = a["created_at"].replace(microsecond=0).isoformat() + "Z"
-        anns.append(a)
+        def _fmt(dt):
+            if not dt:
+                return None
+            return dt.replace(microsecond=0).isoformat() + "Z"
 
+        ann = {
+            "id": str(a.get("_id")),
+            "message": a.get("message"),
+            "start_date": _fmt(a.get("start_date")),
+            "expires_at": _fmt(a.get("expires_at")),
+            "created_at": _fmt(a.get("created_at")),
+            "created_by": a.get("created_by"),
+        }
+        anns.append(ann)
     return {"announcements": anns}
 
 

@@ -144,7 +144,7 @@ def check_session(authorization: Optional[str] = Header(None), username: Optiona
     if username:
         teacher = teachers_collection.find_one({"_id": username})
         if not teacher:
-            raise HTTPException(status_code=401, detail="Invalid teacher credentials")
+            raise HTTPException(status_code=404, detail="Teacher not found")
         return {"username": teacher["username"], "display_name": teacher["display_name"], "role": teacher["role"]}
 
     raise HTTPException(status_code=401, detail="Authentication required")
