@@ -46,32 +46,29 @@ def _revoke_sessions_for_username(username: str) -> None:
             del _sessions[t]
 
 
-def get_current_user(authorization: Optional[str] = Header(None), username: Optional[str] = Query(None)) -> Dict[str, Any]:
-    """Resolve current teacher from Authorization header (Bearer token) or fallback to username query (legacy).
+def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+    """Resolve current teacher from Authorization header (Bearer token).
 
-    Prefer token-based lookup. Raises 401 if not authenticated.
+    This dependency enforces token-based authentication only. Legacy username query
+    fallback was removed to avoid accidental authentication bypass. If a compatibility
+    endpoint needs to allow username-based checks, implement that explicitly (see
+    `check_session`).
     """
-    resolved_username = None
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization required")
 
-    # Authorization: Bearer <token>
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ", 1)[1]
-        sess = _sessions.get(token)
-        if not sess:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-        # enforce expiration
-        expires_at = sess.get("expires_at")
-        if expires_at and datetime.utcnow() > expires_at:
-            # session expired; remove it
-            del _sessions[token]
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
-        resolved_username = sess["username"]
-    elif username:
-        # Legacy fallback (still supported for compatibility)
-        resolved_username = username
-    else:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    token = authorization.split(" ", 1)[1]
+    sess = _sessions.get(token)
+    if not sess:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    # enforce expiration
+    expires_at = sess.get("expires_at")
+    if expires_at and datetime.utcnow() > expires_at:
+        # session expired; remove it
+        del _sessions[token]
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+    resolved_username = sess["username"]
     teacher = teachers_collection.find_one({"_id": resolved_username})
     if not teacher:
         raise HTTPException(status_code=401, detail="Invalid teacher credentials")
@@ -132,6 +129,22 @@ def logout(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
 
 
 @router.get("/check-session")
-def check_session(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
-    """Check if a session is valid (resolved via token or legacy username query)"""
-    return current_user
+def check_session(authorization: Optional[str] = Header(None), username: Optional[str] = Query(None)) -> Dict[str, Any]:
+    """Check if a session is valid.
+
+    Prefer token-based verification (Authorization: Bearer). For backwards-compatibility
+    only this endpoint accepts a legacy `username` query parameter and will return
+    public teacher info when supplied (this does NOT create a session or issue tokens).
+    """
+    # If an Authorization header with Bearer token is provided, validate it the normal way
+    if authorization and authorization.startswith("Bearer "):
+        return get_current_user(authorization=authorization)
+
+    # Legacy compatibility: allow username query to check existence only (no token required)
+    if username:
+        teacher = teachers_collection.find_one({"_id": username})
+        if not teacher:
+            raise HTTPException(status_code=401, detail="Invalid teacher credentials")
+        return {"username": teacher["username"], "display_name": teacher["display_name"], "role": teacher["role"]}
+
+    raise HTTPException(status_code=401, detail="Authentication required")

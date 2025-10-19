@@ -23,6 +23,26 @@ def _is_authenticated_teacher(username: Optional[str]) -> bool:
     return teacher is not None
 
 
+def _parse_iso_to_utc_naive(s: str) -> datetime:
+    """Accept ISO with 'Z' or offset, normalize to naive UTC datetime for storage.
+
+    Raises HTTPException(status_code=400) on parse errors.
+    """
+    try:
+        if s.endswith("Z"):
+            s2 = s[:-1] + "+00:00"
+        else:
+            s2 = s
+        dt = datetime.fromisoformat(s2)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid datetime format; use ISO datetime")
+
+    if dt.tzinfo is not None:
+        # convert to UTC then drop tzinfo to store as naive UTC
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 @router.get("/active", response_model=Dict[str, Any])
 def get_active_announcements() -> Dict[str, Any]:
     """Return announcements that are currently active (start_date <= now < expires_at)"""
@@ -90,22 +110,6 @@ def create_announcement(
     """Create a new announcement. expires_at required (ISO format)."""
     # current_user was already validated by the dependency
 
-    def _parse_iso_to_utc_naive(s: str) -> datetime:
-        # Accept ISO with 'Z' or offset, normalize to naive UTC datetime for storage
-        try:
-            if s.endswith("Z"):
-                s2 = s[:-1] + "+00:00"
-            else:
-                s2 = s
-            dt = datetime.fromisoformat(s2)
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid datetime format; use ISO datetime")
-
-        if dt.tzinfo is not None:
-            # convert to UTC then drop tzinfo to store as naive UTC
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt
-
     try:
         exp = _parse_iso_to_utc_naive(expires_at)
     except HTTPException:
@@ -148,18 +152,7 @@ def update_announcement(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid announcement id")
 
-    def _parse_iso_to_utc_naive(s: str) -> datetime:
-        if s.endswith("Z"):
-            s2 = s[:-1] + "+00:00"
-        else:
-            s2 = s
-        try:
-            dt = datetime.fromisoformat(s2)
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid datetime format; use ISO datetime")
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-        return dt
+    # reuse module-level _parse_iso_to_utc_naive
 
     update = {}
     if message is not None:

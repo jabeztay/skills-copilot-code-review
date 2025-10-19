@@ -896,6 +896,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (activeAnnouncements.length === 0) {
       announcementBanner.classList.add("hidden");
       announcementBanner.textContent = "";
+      announcementBanner.setAttribute('aria-hidden', 'true');
       return;
     }
 
@@ -903,6 +904,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const ann = activeAnnouncements[0];
     announcementBanner.textContent = `📣 ${ann.message}`;
     announcementBanner.classList.remove("hidden");
+    // Make sure it's exposed to assistive tech when visible
+    announcementBanner.setAttribute('aria-hidden', 'false');
   }
 
   async function openAnnouncementModal() {
@@ -912,8 +915,10 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    announcementModal.classList.remove("hidden");
-    setTimeout(() => announcementModal.classList.add("show"), 10);
+  announcementModal.classList.remove("hidden");
+  // expose to assistive tech
+  announcementModal.setAttribute('aria-hidden', 'false');
+  setTimeout(() => announcementModal.classList.add("show"), 10);
     // load announcements for management view
     await loadAnnouncementsForAdmin();
   }
@@ -925,6 +930,8 @@ document.addEventListener("DOMContentLoaded", () => {
       announcementForm.reset();
       announcementIdInput.value = "";
       announcementMessageDiv.classList.add("hidden");
+      // hide from assistive tech
+      announcementModal.setAttribute('aria-hidden', 'true');
     }, 300);
   }
 
