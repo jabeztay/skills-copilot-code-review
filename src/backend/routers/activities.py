@@ -2,11 +2,12 @@
 Endpoints for the High School Management System API
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import RedirectResponse
 from typing import Dict, Any, Optional, List
 
 from ..database import activities_collection, teachers_collection
+from .auth import get_current_user
 
 router = APIRouter(
     prefix="/activities",
@@ -67,17 +68,8 @@ def get_available_days() -> List[str]:
 
 
 @router.post("/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str, teacher_username: Optional[str] = Query(None)):
-    """Sign up a student for an activity - requires teacher authentication"""
-    # Check teacher authentication
-    if not teacher_username:
-        raise HTTPException(
-            status_code=401, detail="Authentication required for this action")
-
-    teacher = teachers_collection.find_one({"_id": teacher_username})
-    if not teacher:
-        raise HTTPException(
-            status_code=401, detail="Invalid teacher credentials")
+def signup_for_activity(activity_name: str, email: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Sign up a student for an activity - requires teacher authentication via dependency"""
 
     # Get the activity
     activity = activities_collection.find_one({"_id": activity_name})
@@ -103,17 +95,8 @@ def signup_for_activity(activity_name: str, email: str, teacher_username: Option
 
 
 @router.post("/{activity_name}/unregister")
-def unregister_from_activity(activity_name: str, email: str, teacher_username: Optional[str] = Query(None)):
-    """Remove a student from an activity - requires teacher authentication"""
-    # Check teacher authentication
-    if not teacher_username:
-        raise HTTPException(
-            status_code=401, detail="Authentication required for this action")
-
-    teacher = teachers_collection.find_one({"_id": teacher_username})
-    if not teacher:
-        raise HTTPException(
-            status_code=401, detail="Invalid teacher credentials")
+def unregister_from_activity(activity_name: str, email: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Remove a student from an activity - requires teacher authentication via dependency"""
 
     # Get the activity
     activity = activities_collection.find_one({"_id": activity_name})
