@@ -1033,10 +1033,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (id) {
         const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
         if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+        // convert datetime-local (local) to ISO UTC strings
+        const expiresISO = (expires && expires !== '') ? new Date(expires).toISOString() : '';
+        const startISO = (start && start !== '') ? new Date(start).toISOString() : '';
         const res = await fetch(`/announcements/update/${encodeURIComponent(id)}`, {
           method: 'POST',
           headers,
-          body: new URLSearchParams({ message, start_date: start || '', expires_at: expires })
+          body: new URLSearchParams({ message, start_date: startISO, expires_at: expiresISO })
         });
         const data = await res.json();
         if (!res.ok) { showLocalAnnouncementMessage(data.detail || 'Update failed', 'error'); return; }
@@ -1044,10 +1047,12 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
         if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+        const expiresISO = (expires && expires !== '') ? new Date(expires).toISOString() : '';
+        const startISO = (start && start !== '') ? new Date(start).toISOString() : '';
         const res = await fetch(`/announcements/create`, {
           method: 'POST',
           headers,
-          body: new URLSearchParams({ message, start_date: start || '', expires_at: expires })
+          body: new URLSearchParams({ message, start_date: startISO, expires_at: expiresISO })
         });
         const data = await res.json();
         if (!res.ok) { showLocalAnnouncementMessage(data.detail || 'Create failed', 'error'); return; }
