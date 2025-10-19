@@ -141,10 +141,10 @@
     </div>
 
     <!-- Announcement Manager Modal (for authenticated users) -->
-    <div id="announcement-modal" class="modal hidden" aria-hidden="true">
+    <div id="announcement-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="announcement-modal-title" aria-hidden="true">
       <div class="modal-content">
         <span class="close-announcement-modal">&times;</span>
-        <h3>Manage Announcements</h3>
+        <h3 id="announcement-modal-title">Manage Announcements</h3>
         <div id="announcement-list-container">
           <p>Loading announcements...</p>
         </div>
@@ -170,7 +170,7 @@
             <button type="submit" id="announcement-save">Save</button>
           </div>
         </form>
-        <div id="announcement-message" class="hidden message"></div>
+        <div id="announcement-feedback" class="hidden message"></div>
       </div>
     </div>
 

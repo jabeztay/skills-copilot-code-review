@@ -882,7 +882,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const announcementListContainer = document.getElementById("announcement-list-container");
   const announcementForm = document.getElementById("announcement-form");
   const announcementIdInput = document.getElementById("announcement-id");
-  const announcementMessageDiv = document.getElementById("announcement-message");
+  const announcementMessageDiv = document.getElementById("announcement-feedback");
 
   announcementManagerButton.addEventListener("click", openAnnouncementModal);
   closeAnnouncementModal.addEventListener("click", closeAnnouncementModalHandler);
@@ -915,7 +915,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // For now show the soonest expiring announcement prominently
     const ann = activeAnnouncements[0];
-    announcementBanner.innerHTML = `📣 ${ann.message}`;
+    announcementBanner.textContent = `📣 ${ann.message}`;
     announcementBanner.classList.remove("hidden");
   }
 

@@ -39,16 +39,13 @@ def get_active_announcements() -> Dict[str, Any]:
 
     anns = []
     for a in announcements_collection.find(query).sort([("expires_at", 1)]):
-        a["id"] = str(a.get("_id"))
-        a.pop("_id", None)
-        # serialize datetimes to ISO
-        if a.get("start_date"):
-            a["start_date"] = a["start_date"].isoformat()
-        if a.get("expires_at"):
-            a["expires_at"] = a["expires_at"].isoformat()
-        if a.get("created_at"):
-            a["created_at"] = a["created_at"].isoformat()
-        anns.append(a)
+        ann = {
+            "id": str(a.get("_id")),
+            "message": a.get("message"),
+            "start_date": a.get("start_date").isoformat() if a.get("start_date") else None,
+            "expires_at": a.get("expires_at").isoformat() if a.get("expires_at") else None,
+        }
+        anns.append(ann)
 
     return {"announcements": anns}
 
@@ -145,7 +142,7 @@ def update_announcement(announcement_id: str, message: Optional[str] = None, exp
     return {"message": "Announcement updated"}
 
 
-@router.post("/delete/{announcement_id}")
+@router.delete("/{announcement_id}")
 def delete_announcement(announcement_id: str, username: Optional[str] = Query(None)):
     """Delete an announcement by id."""
     if not _is_authenticated_teacher(username):
