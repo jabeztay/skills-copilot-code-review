@@ -123,9 +123,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Validate user session with the server
   async function validateUserSession(username) {
     try {
-      const response = await fetch(
-        `/auth/check-session?username=${encodeURIComponent(username)}`
-      );
+      const token = currentUser && currentUser.token ? currentUser.token : null;
+      const response = await fetch(`/auth/check-session`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
 
       if (!response.ok) {
         // Session invalid, log out
@@ -136,7 +137,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Session is valid, update user data
       const userData = await response.json();
       currentUser = userData;
-      localStorage.setItem("currentUser", JSON.stringify(userData));
+      // persist token too (server returns token on login)
+      if (token) currentUser.token = token;
+      localStorage.setItem("currentUser", JSON.stringify(currentUser));
       updateAuthUI();
     } catch (error) {
       console.error("Error validating session:", error);
@@ -177,28 +180,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // Login function
   async function login(username, password) {
     try {
-      const response = await fetch(
-        `/auth/login?username=${encodeURIComponent(
-          username
-        )}&password=${encodeURIComponent(password)}`,
-        {
-          method: "POST",
-        }
-      );
+      const response = await fetch(`/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ username, password })
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
-        showLoginMessage(
-          data.detail || "Invalid username or password",
-          "error"
-        );
+        showLoginMessage(data.detail || "Invalid username or password", "error");
         return false;
       }
 
-      // Login successful
-      currentUser = data;
-      localStorage.setItem("currentUser", JSON.stringify(data));
+      // Login successful — server returns token
+      currentUser = { username: data.username, display_name: data.display_name, role: data.role, token: data.token };
+      localStorage.setItem("currentUser", JSON.stringify(currentUser));
       updateAuthUI();
       closeLoginModalHandler();
       showMessage(`Welcome, ${currentUser.display_name}!`, "success");
@@ -779,15 +776,11 @@ document.addEventListener("DOMContentLoaded", () => {
       `Are you sure you want to unregister ${email} from ${activity}?`,
       async () => {
         try {
+          const headers = {};
+          if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
           const response = await fetch(
-            `/activities/${encodeURIComponent(
-              activity
-            )}/unregister?email=${encodeURIComponent(
-              email
-            )}&teacher_username=${encodeURIComponent(currentUser.username)}`,
-            {
-              method: "POST",
-            }
+            `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`,
+            { method: "POST", headers }
           );
 
           const result = await response.json();
@@ -836,16 +829,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const activity = activityInput.value;
 
     try {
-      const response = await fetch(
-        `/activities/${encodeURIComponent(
-          activity
-        )}/signup?email=${encodeURIComponent(
-          email
-        )}&teacher_username=${encodeURIComponent(currentUser.username)}`,
-        {
-          method: "POST",
-        }
-      );
+      const headers = {};
+      if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+      const response = await fetch(`/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`, { method: "POST", headers });
 
       const result = await response.json();
 
@@ -945,7 +931,9 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadAnnouncementsForAdmin() {
     announcementListContainer.innerHTML = "<p>Loading announcements...</p>";
     try {
-      const res = await fetch(`/announcements?username=${encodeURIComponent(currentUser.username)}`);
+  const headers = {};
+  if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+  const res = await fetch(`/announcements`, { headers });
       if (!res.ok) {
         announcementListContainer.innerHTML = `<p class=\"message error\">Failed to load announcements</p>`;
         return;
@@ -1010,7 +998,9 @@ document.addEventListener("DOMContentLoaded", () => {
   async function confirmDeleteAnnouncement(id) {
     showConfirmationDialog('Delete this announcement?', async () => {
       try {
-        const res = await fetch(`/announcements/delete/${encodeURIComponent(id)}?username=${encodeURIComponent(currentUser.username)}`, { method: 'POST' });
+  const headers = {};
+  if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+  const res = await fetch(`/announcements/delete/${encodeURIComponent(id)}`, { method: 'POST', headers });
         const data = await res.json();
         if (!res.ok) {
           showMessage(data.detail || 'Delete failed', 'error');
@@ -1041,18 +1031,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       if (id) {
-        const res = await fetch(`/announcements/update/${encodeURIComponent(id)}?username=${encodeURIComponent(currentUser.username)}`, {
+        const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+        const res = await fetch(`/announcements/update/${encodeURIComponent(id)}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers,
           body: new URLSearchParams({ message, start_date: start || '', expires_at: expires })
         });
         const data = await res.json();
         if (!res.ok) { showLocalAnnouncementMessage(data.detail || 'Update failed', 'error'); return; }
         showLocalAnnouncementMessage('Announcement updated', 'success');
       } else {
-        const res = await fetch(`/announcements/create?username=${encodeURIComponent(currentUser.username)}`, {
+        const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+        const res = await fetch(`/announcements/create`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers,
           body: new URLSearchParams({ message, start_date: start || '', expires_at: expires })
         });
         const data = await res.json();

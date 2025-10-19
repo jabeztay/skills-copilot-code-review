@@ -2,11 +2,12 @@
 Announcements management endpoints
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Form, Depends
 from typing import Optional, Dict, Any
 from datetime import datetime
 
 from ..database import announcements_collection, teachers_collection
+from .auth import get_current_user
 
 router = APIRouter(
     prefix="/announcements",
@@ -15,6 +16,7 @@ router = APIRouter(
 
 
 def _is_authenticated_teacher(username: Optional[str]) -> bool:
+    # keep for compatibility with other code paths that may still call it directly
     if not username:
         return False
     teacher = teachers_collection.find_one({"_id": username})
@@ -51,10 +53,8 @@ def get_active_announcements() -> Dict[str, Any]:
 
 
 @router.get("", response_model=Dict[str, Any])
-def list_announcements(username: Optional[str] = Query(None)) -> Dict[str, Any]:
-    """List all announcements (management view). Requires authentication."""
-    if not _is_authenticated_teacher(username):
-        raise HTTPException(status_code=401, detail="Authentication required")
+def list_announcements(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    """List all announcements (management view). Requires authentication via dependency."""
 
     anns = []
     for a in announcements_collection.find().sort([("expires_at", 1)]):
@@ -72,10 +72,14 @@ def list_announcements(username: Optional[str] = Query(None)) -> Dict[str, Any]:
 
 
 @router.post("/create")
-def create_announcement(message: str, expires_at: str, start_date: Optional[str] = None, username: Optional[str] = Query(None)):
+def create_announcement(
+    message: str = Form(...),
+    expires_at: str = Form(...),
+    start_date: Optional[str] = Form(None),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
     """Create a new announcement. expires_at required (ISO format)."""
-    if not _is_authenticated_teacher(username):
-        raise HTTPException(status_code=401, detail="Authentication required")
+    # current_user was already validated by the dependency
 
     try:
         exp = datetime.fromisoformat(expires_at)
@@ -94,7 +98,7 @@ def create_announcement(message: str, expires_at: str, start_date: Optional[str]
         "message": message,
         "start_date": start,
         "expires_at": exp,
-        "created_by": username,
+    "created_by": current_user["username"],
         "created_at": datetime.utcnow()
     }
 
@@ -103,10 +107,14 @@ def create_announcement(message: str, expires_at: str, start_date: Optional[str]
 
 
 @router.post("/update/{announcement_id}")
-def update_announcement(announcement_id: str, message: Optional[str] = None, expires_at: Optional[str] = None, start_date: Optional[str] = None, username: Optional[str] = Query(None)):
-    """Update an existing announcement by id."""
-    if not _is_authenticated_teacher(username):
-        raise HTTPException(status_code=401, detail="Authentication required")
+def update_announcement(
+    announcement_id: str,
+    message: Optional[str] = Form(None),
+    expires_at: Optional[str] = Form(None),
+    start_date: Optional[str] = Form(None),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Update an existing announcement by id. Authentication is handled by dependency."""
 
     from bson import ObjectId
 
@@ -143,10 +151,8 @@ def update_announcement(announcement_id: str, message: Optional[str] = None, exp
 
 
 @router.delete("/{announcement_id}")
-def delete_announcement(announcement_id: str, username: Optional[str] = Query(None)):
-    """Delete an announcement by id."""
-    if not _is_authenticated_teacher(username):
-        raise HTTPException(status_code=401, detail="Authentication required")
+def delete_announcement(announcement_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Delete an announcement by id. Authentication via dependency."""
 
     from bson import ObjectId
 
@@ -160,3 +166,11 @@ def delete_announcement(announcement_id: str, username: Optional[str] = Query(No
         raise HTTPException(status_code=404, detail="Announcement not found")
 
     return {"message": "Announcement deleted"}
+
+
+# Some clients (the frontend) POST to /announcements/delete/{id} using form-encoded requests.
+# Provide a POST wrapper that calls the same logic so both DELETE and POST are supported.
+@router.post("/delete/{announcement_id}")
+def delete_announcement_post(announcement_id: str, current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+    """Delete an announcement by id (POST wrapper for form clients)."""
+    return delete_announcement(announcement_id, current_user)
