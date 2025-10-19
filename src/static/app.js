@@ -44,6 +44,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // Authentication state
   let currentUser = null;
 
+  // Helper to build Authorization headers (adds Bearer token when available)
+  function authHeaders(extra = {}) {
+    // create a shallow copy so we don't mutate caller's object
+    const headers = Object.assign({}, extra || {});
+    if (currentUser && currentUser.token) {
+      headers["Authorization"] = `Bearer ${currentUser.token}`;
+    }
+    return headers;
+  }
+
   // Announcements state
   let activeAnnouncements = [];
 
@@ -123,9 +133,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Validate user session with the server
   async function validateUserSession(username) {
     try {
-      const token = currentUser && currentUser.token ? currentUser.token : null;
       const response = await fetch(`/auth/check-session`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: authHeaders()
       });
 
       if (!response.ok) {
@@ -208,7 +217,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Logout function
-  function logout() {
+  async function logout() {
+    // If we have a token, notify server to revoke it before clearing client state
+    try {
+      if (currentUser && currentUser.token) {
+        await fetch(`/auth/logout`, { method: "POST", headers: authHeaders() });
+      }
+    } catch (err) {
+      // Log the error but continue clearing local state to avoid leaving UI in a bad state
+      console.error("Error notifying server about logout:", err);
+    }
+
     currentUser = null;
     localStorage.removeItem("currentUser");
     updateAuthUI();
@@ -776,11 +795,9 @@ document.addEventListener("DOMContentLoaded", () => {
       `Are you sure you want to unregister ${email} from ${activity}?`,
       async () => {
         try {
-          const headers = {};
-          if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
           const response = await fetch(
             `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`,
-            { method: "POST", headers }
+            { method: "POST", headers: authHeaders() }
           );
 
           const result = await response.json();
@@ -829,9 +846,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const activity = activityInput.value;
 
     try {
-      const headers = {};
-      if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
-      const response = await fetch(`/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`, { method: "POST", headers });
+  const response = await fetch(`/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`, { method: "POST", headers: authHeaders() });
 
       const result = await response.json();
 
@@ -938,9 +953,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadAnnouncementsForAdmin() {
     announcementListContainer.innerHTML = "<p>Loading announcements...</p>";
     try {
-  const headers = {};
-  if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
-  const res = await fetch(`/announcements`, { headers });
+  const res = await fetch(`/announcements`, { headers: authHeaders() });
       if (!res.ok) {
         announcementListContainer.innerHTML = `<p class=\"message error\">Failed to load announcements</p>`;
         return;
@@ -1005,9 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function confirmDeleteAnnouncement(id) {
     showConfirmationDialog('Delete this announcement?', async () => {
       try {
-  const headers = {};
-  if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
-  const res = await fetch(`/announcements/delete/${encodeURIComponent(id)}`, { method: 'POST', headers });
+  const res = await fetch(`/announcements/delete/${encodeURIComponent(id)}`, { method: 'POST', headers: authHeaders() });
         const data = await res.json();
         if (!res.ok) {
           showMessage(data.detail || 'Delete failed', 'error');
@@ -1038,8 +1049,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       if (id) {
-        const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-        if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+  const headers = authHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' });
         // convert datetime-local (local) to ISO UTC strings
         const expiresISO = (expires && expires !== '') ? new Date(expires).toISOString() : '';
         const startISO = (start && start !== '') ? new Date(start).toISOString() : '';
@@ -1052,8 +1062,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!res.ok) { showLocalAnnouncementMessage(data.detail || 'Update failed', 'error'); return; }
         showLocalAnnouncementMessage('Announcement updated', 'success');
       } else {
-        const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-        if (currentUser && currentUser.token) headers['Authorization'] = `Bearer ${currentUser.token}`;
+  const headers = authHeaders({ 'Content-Type': 'application/x-www-form-urlencoded' });
         const expiresISO = (expires && expires !== '') ? new Date(expires).toISOString() : '';
         const startISO = (start && start !== '') ? new Date(start).toISOString() : '';
         const res = await fetch(`/announcements/create`, {
